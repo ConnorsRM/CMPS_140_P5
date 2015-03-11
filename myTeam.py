@@ -61,6 +61,7 @@ class DummyAgent(CaptureAgent):
   
   #store state
   state = States.Assault
+  assaultTgt = None
   
   #add more states with comma after Assault
   class States:
@@ -77,8 +78,38 @@ class DummyAgent(CaptureAgent):
   
   #return the best available action in assault mode
   #using a simple greedy search to be augmented later
-  def AssaultAction(self, gameState):
+  def beginAssault(self, gameState):
+    #just for testing, this can be removed
+    if self.assaultTgt != None:
+      return
     
+    features  = util.Counter()
+    myState   = gameState.getAgentState(self.index)
+    myPos     = myState.getPosition()
+    
+    #Find Border, no direct access, have to calculate it
+    thisInitialPos = gameState.getInitialAgentPosition(self.index)
+    enemyInitialPos = gameState.getInitialAgentPosition(3 - self.index)
+    border = int(max(thisInitialPos[0],enemyInitialPos[0]))/2
+    
+    #assume linear path possible and set as target,
+    #it isn't but this can be tweaked later
+    
+    newTarget = [myPos[0], myPos[1]]
+    
+    #determine correct side of border to find
+    if(myPos[0] > border):
+      newTarget[0] = border+1
+    else:
+      newTarget[0] = border-1
+    
+    self.assaultTgt = (newTarget[0], newTarget[1])
+    
+    print self.assaultTgt
+    
+    
+  def AssaultAction(self, gameState):
+    self.beginAssault(gameState)
     actions = gameState.getLegalActions(self.index)
     bestAction = None
     bestVal    = float("-inf")
@@ -100,30 +131,13 @@ class DummyAgent(CaptureAgent):
     successor = self.getSuccessor(gameState, action)
     myState   = successor.getAgentState(self.index)
     myPos     = myState.getPosition()
-    print myPos
+
     #we want to minimize distance from pacman to
-    #closest enemy food
-    tgtFood = self.getFood(successor).asList()
-    
-    #find closest enemy food and assail it!
-    closestDist = float("inf")
-    closestFood = None
-    
-    for food in tgtFood:
-      if closestFood == None:
-        closestFood = food
-        closestDist = self.getMazeDistance(myPos, food)
-      else:
-        thisDist = self.getMazeDistance(myPos, food)
-        if thisDist < closestDist:
-          closestDist = thisDist
-          closestFood = food
-    
-    print closestDist
-    if closestDist == 0:
-      return 2
-    print closestFood
-    return 1.0/closestDist
+    #border
+    try :
+      return 1.0/self.getMazeDistance(myPos,self.assaultTgt)
+    except ZeroDivisionError:
+      return 1.0
 
   def registerInitialState(self, gameState):
     """
@@ -145,7 +159,7 @@ class DummyAgent(CaptureAgent):
     CaptureAgent.registerInitialState in captureAgents.py. 
     '''
     CaptureAgent.registerInitialState(self, gameState)
-
+    self.beginAssault(gameState)
     ''' 
     Your initialization code goes here, if you need any.
     '''
