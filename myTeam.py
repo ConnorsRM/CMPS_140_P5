@@ -68,7 +68,8 @@ class DummyAgent(CaptureAgent):
   
   #store state
   state = States.Assault
-  assaultTgt = None
+  assaultTgt    = None
+  isTop         = None
   
   #add more states with comma after Assault
   class States:
@@ -94,6 +95,28 @@ class DummyAgent(CaptureAgent):
     myState   = gameState.getAgentState(self.index)
     myPos     = myState.getPosition()
     
+    #determine who's top and who's bottom
+    
+    #first get team info
+    teamIndices = None
+    teamMateIndex = None
+    
+    if(gameState.isOnRedTeam(self.index)):
+      teamIndices = gameState.getRedTeamIndices()
+    else:
+      teamIndices = gameState.getBlueTeamIndices()
+    
+    teamIndices.remove(self.index)
+    teamMateIndex = teamIndices[0]
+    teamMateState = gameState.getAgentState(teamMateIndex)
+    teamMatePos   = teamMateState.getPosition()
+    
+    #if equal y cases, why not randomize to keep enemy learning minimal
+    if myPos[1] > teamMatePos[1]:
+      self.isTop = True
+    else:
+      self.isTop = False
+    
     #Find Border, no direct access, have to calculate it
     thisInitialPos = gameState.getInitialAgentPosition(self.index)
     enemyInitialPos = gameState.getInitialAgentPosition(3 - self.index)
@@ -102,17 +125,14 @@ class DummyAgent(CaptureAgent):
     #assume linear path possible and set as target,
     #it isn't but this can be tweaked later
     
-    newTarget = [myPos[0], myPos[1]]
+    newTarget = [enemyInitialPos[0], enemyInitialPos[1]]
     
     #determine correct side of border to find
-    if(myPos[0] > border):
-      newTarget[0] = border+1
-    else:
-      newTarget[0] = border-1
+    if(self.isTop):
+      newTarget[1] = thisInitialPos[1]
+      
     
     self.assaultTgt = (newTarget[0], newTarget[1])
-    
-    print self.assaultTgt
     
     
   def AssaultAction(self, gameState):
@@ -139,12 +159,29 @@ class DummyAgent(CaptureAgent):
     myState   = successor.getAgentState(self.index)
     myPos     = myState.getPosition()
 
-    #we want to minimize distance from pacman to
-    #border
-    try :
-      return 1.0/self.getMazeDistance(myPos,self.assaultTgt)
-    except ZeroDivisionError:
-      return 1.0
+    #weights
+    #give it just the smallest cookie crumb for y pos incentive
+    yWeight = 0.000001
+    distWeight = 1.0
+    
+    yProxFeat = 0;
+    tgtDistFeat = 0;
+    #make agent favor it's Lane... I hate dota, and therefore
+    #this term angers me ><
+    laneDist = abs(self.assaultTgt[1]-myPos[1])
+    if (laneDist != 0):
+      yProxFeat = 1.0/laneDist
+    else:
+      yProxFeat = 1.0
+    
+    tgtDistFeat = self.getMazeDistance(myPos,self.assaultTgt)
+    
+    if (tgtDistFeat != 0):
+      tgtDistFeat = 1.0/self.getMazeDistance(myPos,self.assaultTgt)
+    else:
+      tgtDistFeat = 1.0
+    
+    return (yWeight * yProxFeat) + (distWeight * tgtDistFeat)
 
   def minSpanTreeWeight(self, foodList):
      """
@@ -226,8 +263,12 @@ class DummyAgent(CaptureAgent):
     ''' 
     Your initialization code goes here, if you need any.
     '''
-
-
+  
+  def determineState(self, gameState):
+    #condition to switch from assault to guard/nom mode
+    #here. called at front of chooseAction
+    return
+  
   def chooseAction(self, gameState):
     """
     Picks among actions randomly.
