@@ -10,69 +10,14 @@ from captureAgents import CaptureAgent
 import random, time, util
 from util import nearestPoint
 from game import Directions
+import itertools
 import game
 
-###########################
-# Tree Functions and Vars #
-###########################
+#############
+# Tree Vars #
+#############
 
-minSpanTreeDict = {(): 0};
-
-def minSpanTreeWeight(foodList):
-  """
-  Calculates and returns the weight of the minSpan tree denoted by
-  the food in the list foodList. Each food must be a tuple storing
-  the position of the food.
-  """
-  foodTuple = tuple(foodList.asList())
-  closestDot = [-1, -1]
-  result = 0
-  
-  #See if the minSpanManTree has already been calculated...
-  #...if not, find / record the weight of the Minimum Spanning Manhattan Tree
-  if foodTuple not in minSpanTreeDict:
-    #Calculate MDistances between Food
-    foodDists = {}
-    for food1 in foodList:
-      food1_Dist = {}
-      for food2 in foodList:
-        food1_Dist[food2] = Distancer.getMazeDistance(food1, food2)
-      foodDists[food1] = food1_Dist
-	
-    #Build Tree
-    minSpanManTree = set()
-    minSpanManTree.add(foodList[0])
-    foodList.remove(foodList[0])
-    treeWeight = 0
-    while (len(foodList) > 0):
-      #Find min dist from FoodInTree to FoodNotInTree
-      closestFoodToTree = [-1, [-1, -1]]
-      for FoodInTree in minSpanManTree:
-        for FoodNotInTree in foodList:
-          tempDist = foodDists[FoodInTree][FoodNotInTree]
-          if ((closestFoodToTree[0] == -1) or (tempDist < closestFoodToTree[0])):
-            closestFoodToTree = [tempDist, FoodNotInTree]
-      
-      #Add FoodNotInTree to Tree
-      minSpanManTree.add(tuple(closestFoodToTree[1]))
-      foodList.remove(closestFoodToTree[1])
-      
-      #Add Dist to weight
-      treeWeight += closestFoodToTree[0]
-  
-  #Return the weight of the tree
-  return treeWeight
-
-def getAllTreeWeightsFrom(food):
-  """
-  This Function takes the list of food and stores the result from
-  minSpanTreeWeight for all possible food combinations in the
-  minSpanTreeDict.
-  """
-  
-  print 
-  
-  return
+minSpanTreeDict = {(): 0}
   
 #################
 # Team creation #
@@ -94,8 +39,6 @@ def createTeam(firstIndex, secondIndex, isRed,
   any extra arguments, so you should make sure that the default
   behavior is what you want for the nightly contest.
   """
-
-  getAllTreeWeightsFrom(getFood(gameState))
   
   # The following line is an example only; feel free to change it.
   return [eval(first)(firstIndex), eval(second)(secondIndex)]
@@ -203,6 +146,56 @@ class DummyAgent(CaptureAgent):
     except ZeroDivisionError:
       return 1.0
 
+  def minSpanTreeWeight(self, foodList):
+     """
+     Calculates and returns the weight of the minSpan tree denoted by
+     the food in the list foodList. Each food must be a tuple storing
+     the position of the food.
+     """
+     
+     foodTuple = tuple(foodList)
+     closestDot = [-1, -1]
+     result = 0
+     
+     #See if the minSpanManTree has already been calculated...
+     #...if not, find / record the weight of the Minimum Spanning Manhattan Tree
+     if foodTuple not in minSpanTreeDict:
+       #Calculate MDistances between Food
+       foodDists = {}
+       for food1 in foodList:
+         food1_Dist = {}
+         for food2 in foodList:
+           food1_Dist[food2] = self.distancer.getDistance(food1, food2)
+         foodDists[food1] = food1_Dist
+      
+       #Build Tree
+       minSpanManTree = set()
+       minSpanManTree.add(foodList[0])
+       foodList.remove(foodList[0])
+       treeWeight = 0
+       while (len(foodList) > 0):
+         #Find min dist from FoodInTree to FoodNotInTree
+         closestFoodToTree = [-1, [-1, -1]]
+         for FoodInTree in minSpanManTree:
+           for FoodNotInTree in foodList:
+             tempDist = foodDists[FoodInTree][FoodNotInTree]
+             if ((closestFoodToTree[0] == -1) or (tempDist < closestFoodToTree[0])):
+               closestFoodToTree = [tempDist, FoodNotInTree]
+         
+         #Add FoodNotInTree to Tree
+         minSpanManTree.add(tuple(closestFoodToTree[1]))
+         foodList.remove(closestFoodToTree[1])
+         
+         #Add Dist to weight
+         treeWeight += closestFoodToTree[0]
+       minSpanTreeDict[foodTuple] = treeWeight
+     else:
+       treeWeight = minSpanTreeDict[foodTuple]
+     
+     #Return the weight of the tree
+     return treeWeight
+
+  
   def registerInitialState(self, gameState):
     """
     This method handles the initial setup of the
@@ -223,6 +216,12 @@ class DummyAgent(CaptureAgent):
     CaptureAgent.registerInitialState in captureAgents.py. 
     '''
     CaptureAgent.registerInitialState(self, gameState)
+    
+    foodList = self.getFood(gameState).asList()
+    if tuple(foodList) not in minSpanTreeDict:
+      self.minSpanTreeWeight(foodList)
+    
+    print minSpanTreeDict
     self.beginAssault(gameState)
     ''' 
     Your initialization code goes here, if you need any.
@@ -244,3 +243,4 @@ class DummyAgent(CaptureAgent):
       return self.AssaultAction(gameState)
     
     return random.choice(actions)
+  
