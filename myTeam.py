@@ -63,18 +63,16 @@ class DummyAgent(CaptureAgent):
   """
   #add more states with comma after Assault
   class States:
-    Assault = range(1)
+    Assault, Nommer = range(2)
   
   
   #store state
-  state = States.Assault
+  state = States.Nommer
   assaultTgt    = None
   isTop         = None
   
-  #add more states with comma after Assault
-  class States:
-    Assault = range(1)
-    
+  #Store which Ghosts are still Respawning
+  
 
   def getSuccessor(self, gameState, action):
     successor = gameState.generateSuccessor(self.index, action)
@@ -182,7 +180,62 @@ class DummyAgent(CaptureAgent):
       tgtDistFeat = 1.0
     
     return (yWeight * yProxFeat) + (distWeight * tgtDistFeat)
-
+  
+  def NommerAction(self, gameState):
+    actions = gameState.getLegalActions(self.index)
+    weights = self.getNommerWeights()
+    bestAction = None
+    bestVal    = float("-inf")
+    
+    for action in actions:
+      features = self.NommerFeatures(gameState, action)
+      thisVal = features * weights
+      if (thisVal > bestVal):
+         bestVal = thisVal
+         bestAction = action
+    
+    return bestAction
+  
+  def NommerFeatures(self, gameState, action):
+    features  = util.Counter()
+    features['bias'] = 1
+    successor = self.getSuccessor(gameState, action)
+    features['successorScore'] = self.getScore(successor)
+    
+    # Compute distance to the nearest food
+    foodList = self.getFood(successor).asList()
+    if len(foodList) > 0: # This should always be True,  but better safe than sorry
+      myPos = successor.getAgentState(self.index).getPosition()
+      minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
+      features['distanceToFood'] = minDistance
+      
+    features['foodNet'] = self.minSpanTreeWeight(foodList)
+    """
+    #Compute Total Ghost Distance        THIS DOESN'T WORK YET
+    totalDistToGhost = 0
+    closestDistToGhost = float("inf")
+    for enemy in self.getOpponents(gameState):
+      print gameState.getAgentState(enemy)
+      ghostPos = gameState.getAgentState(enemy).getPosition()
+      distToGhost = self.getMazeDistance(myPos, ghostPos)
+      totalDistToGhost += distToGhost
+      closestDistToGhost = min(closestDistToGhost, distToGhost)
+      
+    features['distanceToGhost'] = totalDistToGhost
+    features['closestDistToGhost'] = closestDistToGhost
+    """
+    
+    return features
+  
+  def getNommerWeights(self):
+    return {
+    'successorScore': 10,
+    'foodNet': -2,
+    'distanceToFood': -1,
+    'distanceToGhost': 3,
+    'closestDistToGhost': 5,
+    'bias': 0}
+  
   def minSpanTreeWeight(self, foodList):
      """
      Calculates and returns the weight of the minSpan tree denoted by
@@ -258,7 +311,6 @@ class DummyAgent(CaptureAgent):
     if tuple(foodList) not in minSpanTreeDict:
       self.minSpanTreeWeight(foodList)
     
-    print minSpanTreeDict
     self.beginAssault(gameState)
     ''' 
     Your initialization code goes here, if you need any.
@@ -274,14 +326,16 @@ class DummyAgent(CaptureAgent):
     Picks among actions randomly.
     """
     actions = gameState.getLegalActions(self.index)
-
+    observation = self.getCurrentObservation()
     ''' 
     You should change this in your own agent.
     '''
     
     
     if(self.state == self.States.Assault):
-      return self.AssaultAction(gameState)
+      return self.AssaultAction(observation)
+    elif (self.state == self.States.Nommer):
+      return self.NommerAction(observation)
     
     return random.choice(actions)
   
