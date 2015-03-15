@@ -70,8 +70,7 @@ class DummyAgent(CaptureAgent):
   state = States.Assault
   assaultTgt    = None
   isTop         = None
-  
-  #Store which Ghosts are still Respawning
+  nommerTarget  = None
   
 
   def registerInitialState(self, gameState):
@@ -229,41 +228,66 @@ class DummyAgent(CaptureAgent):
     features  = util.Counter()
     features['bias'] = 1
     successor = self.getSuccessor(gameState, action)
+    foodList = self.getFood(gameState).asList()
+    myPos = successor.getAgentState(self.index).getPosition()
     features['successorScore'] = self.getScore(successor)
     
-    # Compute distance to the nearest food
-    foodList = self.getFood(successor).asList()
+    if ((self.nommerTarget == None) or (self.nommerTarget not in foodList)):
+      bestVal = float("inf")
+      for food in foodList:
+         thisVal = self.minSpanTreeWeight(foodList) + 3 * self.getMazeDistance(myPos, food)
+         if (thisVal < bestVal):
+            bestVal = thisVal
+            self.nommerTarget = food
+    
     if len(foodList) > 0: # This should always be True,  but better safe than sorry
-      myPos = successor.getAgentState(self.index).getPosition()
-      minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
-      features['distanceToFood'] = minDistance
+      features['distanceToFood'] = self.getMazeDistance(myPos, self.nommerTarget)
       
     features['foodNet'] = self.minSpanTreeWeight(foodList)
-    """
-    #Compute Total Ghost Distance        THIS DOESN'T WORK YET
-    totalDistToGhost = 0
+    
+    #Compute Total Ghost Distance
+    capsuleList = gameState.getCapsules()
+    distToSuperFood = 0
+    getCapsule = False
     closestDistToGhost = float("inf")
+    thisInitialPos = gameState.getInitialAgentPosition(self.index)
+    enemyInitialPos = gameState.getInitialAgentPosition(3 - self.index)
+    border = int(max(thisInitialPos[0],enemyInitialPos[0]))/2
+    
     for enemy in self.getOpponents(gameState):
-      print gameState.getAgentState(enemy)
       ghostPos = gameState.getAgentState(enemy).getPosition()
-      distToGhost = self.getMazeDistance(myPos, ghostPos)
-      totalDistToGhost += distToGhost
-      closestDistToGhost = min(closestDistToGhost, distToGhost)
-      
-    features['distanceToGhost'] = totalDistToGhost
-    features['closestDistToGhost'] = closestDistToGhost
-    """
+      if (ghostPos != None):
+         distToGhost = self.getMazeDistance(myPos, ghostPos)
+         if (gameState.getAgentState(enemy).scaredTimer > 0):
+            closestDistToGhost = min(closestDistToGhost, distToGhost)
+         for capsule in capsuleList:
+            if (((capsule[0] > thisInitialPos[0]) and (capsule[0] > border)) or
+               ((capsule[0] < thisInitialPos[0]) and (capsule[0] < border))):
+               distToSuperFood = self.getMazeDistance(capsule, myPos)
+               if ((distToGhost <= 10) and (distToGhost > distToSuperFood)):
+                  getCapsule = True
+         
+    if getCapsule:
+      features['distToCapsule'] = distToSuperFood
+      features['closestDistToGhost'] = closestDistToGhost
+    
+    for ally in self.getTeam(gameState):
+      friendPos = gameState.getAgentState(ally).getPosition()
+      distToAlly = self.getMazeDistance(myPos, friendPos)
+      features['distToAlly'] = distToAlly
     
     return features
   
   def getNommerWeights(self):
     return {
     'successorScore': 10,
-    'foodNet': -2,
+    #'foodNet': -5,
     'distanceToFood': -1,
-    'distanceToGhost': 3,
-    'closestDistToGhost': 5,
-    'bias': 0}
+    #'distToCapsule': -10,
+    #'closestDistToGhost': -2,
+    'distToAlly': .5,
+    #'bias': 1
+    }
   
   def minSpanTreeWeight(self, foodList):
      """
@@ -284,7 +308,7 @@ class DummyAgent(CaptureAgent):
        for food1 in foodList:
          food1_Dist = {}
          for food2 in foodList:
-           food1_Dist[food2] = self.distancer.getDistance(food1, food2)
+           food1_Dist[food2] = self.getMazeDistance(food1, food2)
          foodDists[food1] = food1_Dist
       
        #Build Tree
@@ -313,18 +337,24 @@ class DummyAgent(CaptureAgent):
      
      #Return the weight of the tree
      return treeWeight
+
   
   def determineState(self, gameState):
     #condition to switch from assault to guard/nom mode
     #here. called at front of chooseAction
+    thisInitialPos = gameState.getInitialAgentPosition(self.index)
+    enemyInitialPos = gameState.getInitialAgentPosition(3 - self.index)
+    border = int(max(thisInitialPos[0],enemyInitialPos[0]))/2
+    myPos = gameState.getAgentState(self.index).getPosition()
+      
     if (self.state == self.States.Assault):
-      thisInitialPos = gameState.getInitialAgentPosition(self.index)
-      enemyInitialPos = gameState.getInitialAgentPosition(3 - self.index)
-      border = int(max(thisInitialPos[0],enemyInitialPos[0]))/2
-      myPos = gameState.getAgentState(self.index).getPosition()
       if (((myPos[0] > thisInitialPos[0]) and (myPos[0] > border)) or
             ((myPos[0] < thisInitialPos[0]) and (myPos[0] < border))):
          self.state = self.States.Nommer
+    elif (self.state == self.States.Nommer):
+      if (((myPos[0] > thisInitialPos[0]) and (myPos[0] < border)) or
+            ((myPos[0] < thisInitialPos[0]) and (myPos[0] > border))):
+         self.state = self.States.Assault
          
     return
   
@@ -345,4 +375,4 @@ class DummyAgent(CaptureAgent):
       return self.NommerAction(observation)
     
     return random.choice(actions)
-  
+    
