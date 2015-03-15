@@ -67,13 +67,43 @@ class DummyAgent(CaptureAgent):
   
   
   #store state
-  state = States.Nommer
+  state = States.Assault
   assaultTgt    = None
   isTop         = None
   
   #Store which Ghosts are still Respawning
   
 
+  def registerInitialState(self, gameState):
+    """
+    This method handles the initial setup of the
+    agent to populate useful fields (such as what team
+    we're on). 
+    
+    A distanceCalculator instance caches the maze distances
+    between each pair of positions, so your agents can use:
+    self.distancer.getDistance(p1, p2)
+
+    IMPORTANT: This method may run for at most 15 seconds.
+    """
+
+    ''' 
+    Make sure you do not delete the following line. If you would like to
+    use Manhattan distances instead of maze distances in order to save
+    on initialization time, please take a look at
+    CaptureAgent.registerInitialState in captureAgents.py. 
+    '''
+    CaptureAgent.registerInitialState(self, gameState)
+    
+    foodList = self.getFood(gameState).asList()
+    if tuple(foodList) not in minSpanTreeDict:
+      self.minSpanTreeWeight(foodList)
+    
+    self.beginAssault(gameState)
+    ''' 
+    Your initialization code goes here, if you need any.
+    '''
+  
   def getSuccessor(self, gameState, action):
     successor = gameState.generateSuccessor(self.index, action)
     pos = successor.getAgentState(self.index).getPosition()
@@ -115,7 +145,6 @@ class DummyAgent(CaptureAgent):
     else:
       self.isTop = False
     
-    #Find Border, no direct access, have to calculate it
     thisInitialPos = gameState.getInitialAgentPosition(self.index)
     enemyInitialPos = gameState.getInitialAgentPosition(3 - self.index)
     border = int(max(thisInitialPos[0],enemyInitialPos[0]))/2
@@ -284,41 +313,19 @@ class DummyAgent(CaptureAgent):
      
      #Return the weight of the tree
      return treeWeight
-
-  
-  def registerInitialState(self, gameState):
-    """
-    This method handles the initial setup of the
-    agent to populate useful fields (such as what team
-    we're on). 
-    
-    A distanceCalculator instance caches the maze distances
-    between each pair of positions, so your agents can use:
-    self.distancer.getDistance(p1, p2)
-
-    IMPORTANT: This method may run for at most 15 seconds.
-    """
-
-    ''' 
-    Make sure you do not delete the following line. If you would like to
-    use Manhattan distances instead of maze distances in order to save
-    on initialization time, please take a look at
-    CaptureAgent.registerInitialState in captureAgents.py. 
-    '''
-    CaptureAgent.registerInitialState(self, gameState)
-    
-    foodList = self.getFood(gameState).asList()
-    if tuple(foodList) not in minSpanTreeDict:
-      self.minSpanTreeWeight(foodList)
-    
-    self.beginAssault(gameState)
-    ''' 
-    Your initialization code goes here, if you need any.
-    '''
   
   def determineState(self, gameState):
     #condition to switch from assault to guard/nom mode
     #here. called at front of chooseAction
+    if (self.state == self.States.Assault):
+      thisInitialPos = gameState.getInitialAgentPosition(self.index)
+      enemyInitialPos = gameState.getInitialAgentPosition(3 - self.index)
+      border = int(max(thisInitialPos[0],enemyInitialPos[0]))/2
+      myPos = gameState.getAgentState(self.index).getPosition()
+      if (((myPos[0] > thisInitialPos[0]) and (myPos[0] > border)) or
+            ((myPos[0] < thisInitialPos[0]) and (myPos[0] < border))):
+         self.state = self.States.Nommer
+         
     return
   
   def chooseAction(self, gameState):
@@ -330,7 +337,7 @@ class DummyAgent(CaptureAgent):
     ''' 
     You should change this in your own agent.
     '''
-    
+    self.determineState(gameState)
     
     if(self.state == self.States.Assault):
       return self.AssaultAction(observation)
