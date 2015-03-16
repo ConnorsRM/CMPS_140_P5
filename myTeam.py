@@ -218,7 +218,7 @@ class DummyAgent(CaptureAgent):
     for action in actions:
       features = self.NommerFeatures(gameState, action)
       thisVal = features * weights
-      if (thisVal > bestVal):
+      if (thisVal > bestVal) or (bestAction == None):
          bestVal = thisVal
          bestAction = action
     
@@ -284,8 +284,8 @@ class DummyAgent(CaptureAgent):
     #'foodNet': -5,
     'distanceToFood': -1,
     #'distToCapsule': -10,
-    #'closestDistToGhost': -2,
-    'distToAlly': .5,
+    #'closestDistToGhost': -5,
+    #'distToAlly': .5,
     #'bias': 1
     }
   
